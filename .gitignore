@@ -1,0 +1,13 @@
+# Generated tool-specific wrappers (source is pack/shared/*)
+.claude/
+.cursor/
+.opencode/
+.github/prompts/*.prompt.md
+.github/agents/*.agent.md
+.github/skills/
+
+# Generated MCP configs (source is pack/shared/mcp.json)
+.mcp.json
+.vscode/mcp.json
+
+nul
