@@ -60,7 +60,7 @@ opencode.extra.top_p: 0.9
 
 ## Commands
 
-Slash commands / prompt files that the user triggers manually (e.g. `/commit`, `/changelog`).
+Slash commands / prompt files that the user triggers manually (e.g. `/commit`, `/changelog`, `/release`).
 
 ### Source format
 
@@ -111,6 +111,7 @@ Goal: propose a commit message from staged git changes.
 | `/commit` | Propose a conventional commit message from staged changes |
 | `/changelog` | Update changelog from staged changes (Keep a Changelog format) |
 | `/documentation` | Update affected docs (README, CONTRIBUTING, etc.) from staged changes |
+| `/release` | Run docs + changelog + commit + tag + push in one release flow |
 | `/resolve-conflicts` | AI-assisted merge/rebase conflict resolution |
 
 ---
@@ -354,6 +355,7 @@ pack/shared/
     changelog.md
     commit.md
     documentation.md
+    release.md
     resolve-conflicts.md
   agents/
     frontend-ui.md

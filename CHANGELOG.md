@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.0.8] - 2026-03-01
+
+### Added
+
+- `/release` command (`pack/shared/commands/release.md`): adds a one-command release flow that updates documentation and changelog from staged changes, creates a normal commit, creates an annotated tag, and pushes both branch and tag
+
+### Changed
+
+- `setup.sh`: file mode changed to executable (`100755`) so it can be run directly as `./setup.sh`
+
 ## [0.0.7] - 2026-02-28
 
 ### Changed
