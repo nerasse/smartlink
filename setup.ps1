@@ -617,17 +617,164 @@ $HomePath = $HOME
 $OpenCodeGlobal = Join-Path $HomePath ".config/opencode"
 $ClaudeGlobal = Join-Path $HomePath ".claude"
 $CursorGlobal = Join-Path $HomePath ".cursor"
-$VSCodeGlobal = Join-Path $env:APPDATA "Code/User"
+
+$VSCodeProfileDirs = New-Object System.Collections.Generic.List[string]
+
+function Add-VSCodeProfileDir {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return
+    }
+
+    $normalized = [System.IO.Path]::GetFullPath($Path).TrimEnd([char]'\\', [char]'/')
+    foreach ($existing in $script:VSCodeProfileDirs) {
+        if ($existing.Equals($normalized, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+    }
+
+    $script:VSCodeProfileDirs.Add($normalized) | Out-Null
+}
+
+function Collect-VSCodeProfiles {
+    param([string]$UserRoot)
+
+    if (-not (Test-Path -LiteralPath $UserRoot -PathType Container)) {
+        return
+    }
+
+    Add-VSCodeProfileDir -Path $UserRoot
+
+    $profilesRoot = Join-Path $UserRoot "profiles"
+    if (-not (Test-Path -LiteralPath $profilesRoot -PathType Container)) {
+        return
+    }
+
+    Get-ChildItem -LiteralPath $profilesRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        Add-VSCodeProfileDir -Path $_.FullName
+    }
+}
+
+$vsCodeUserRoots = @()
+if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+    $vsCodeUserRoots += (Join-Path (Join-Path $env:APPDATA "Code") "User")
+    $vsCodeUserRoots += (Join-Path (Join-Path $env:APPDATA "Code - Insiders") "User")
+    $vsCodeUserRoots += (Join-Path (Join-Path $env:APPDATA "VSCodium") "User")
+    $vsCodeUserRoots += (Join-Path (Join-Path $env:APPDATA "VSCodium - Insiders") "User")
+} else {
+    $configHome = if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
+        $env:XDG_CONFIG_HOME
+    } else {
+        Join-Path $HomePath ".config"
+    }
+
+    $vsCodeUserRoots += (Join-Path (Join-Path $configHome "Code") "User")
+    $vsCodeUserRoots += (Join-Path (Join-Path $configHome "Code - Insiders") "User")
+    $vsCodeUserRoots += (Join-Path (Join-Path $configHome "VSCodium") "User")
+    $vsCodeUserRoots += (Join-Path (Join-Path $configHome "VSCodium - Insiders") "User")
+}
+
+$vsCodeRemoteRoots = @(
+    (Join-Path $HomePath ".vscode-server/data/User"),
+    (Join-Path $HomePath ".vscode-server-insiders/data/User"),
+    (Join-Path $HomePath ".vscode-remote/data/User"),
+    (Join-Path $HomePath ".vscode-remote-insiders/data/User")
+)
+
+foreach ($rootDir in @($vsCodeUserRoots + $vsCodeRemoteRoots)) {
+    Collect-VSCodeProfiles -UserRoot $rootDir
+}
+
+$VSCodeEffectiveProfileDirs = New-Object System.Collections.Generic.List[string]
+$VSCodeSkippedRootDirs = New-Object System.Collections.Generic.List[string]
+
+function Add-VSCodeEffectiveProfileDir {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return
+    }
+
+    $normalized = [System.IO.Path]::GetFullPath($Path).TrimEnd([char]'\\', [char]'/')
+    foreach ($existing in $script:VSCodeEffectiveProfileDirs) {
+        if ($existing.Equals($normalized, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+    }
+
+    $script:VSCodeEffectiveProfileDirs.Add($normalized) | Out-Null
+}
+
+function Add-VSCodeSkippedRootDir {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return
+    }
+
+    $normalized = [System.IO.Path]::GetFullPath($Path).TrimEnd([char]'\\', [char]'/')
+    foreach ($existing in $script:VSCodeSkippedRootDirs) {
+        if ($existing.Equals($normalized, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+    }
+
+    $script:VSCodeSkippedRootDirs.Add($normalized) | Out-Null
+}
+
+foreach ($profileDir in $VSCodeProfileDirs) {
+    if ($profileDir -match '[\\/]profiles[\\/]') {
+        Add-VSCodeEffectiveProfileDir -Path $profileDir
+    }
+}
+
+foreach ($profileDir in $VSCodeProfileDirs) {
+    if ($profileDir -match '[\\/]profiles[\\/]') {
+        continue
+    }
+
+    $hasNamedProfile = $false
+    foreach ($candidateDir in $VSCodeProfileDirs) {
+        if ($candidateDir.StartsWith((Join-Path $profileDir "profiles"), [System.StringComparison]::OrdinalIgnoreCase)) {
+            $hasNamedProfile = $true
+            break
+        }
+    }
+
+    if ($hasNamedProfile) {
+        Add-VSCodeSkippedRootDir -Path $profileDir
+    } else {
+        Add-VSCodeEffectiveProfileDir -Path $profileDir
+    }
+}
 
 $symlinked = 0
 $copied = 0
 $linkSkipped = 0
 $backedUp = 0
+$removed = 0
 
 # Probe: test if symlinks are available on this system
 $symlinkFailed = $false
 $probeSource = Join-Path $Root ".gitignore"
-$probeTarget = Join-Path $env:TEMP "smartlink_symlink_probe_$([System.IO.Path]::GetRandomFileName())"
+$tempRoot = if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) {
+    $env:TEMP
+} elseif (-not [string]::IsNullOrWhiteSpace($env:TMPDIR)) {
+    $env:TMPDIR
+} else {
+    [System.IO.Path]::GetTempPath()
+}
+$probeTarget = Join-Path $tempRoot "smartlink_symlink_probe_$([System.IO.Path]::GetRandomFileName())"
 try {
     New-Item -ItemType SymbolicLink -Path $probeTarget -Target $probeSource -Force -ErrorAction Stop | Out-Null
     Remove-Item -LiteralPath $probeTarget -Force -ErrorAction SilentlyContinue
@@ -711,8 +858,67 @@ function Safe-Symlink {
     }
 }
 
+function Remove-ManagedSymlink {
+    param(
+        [string]$Source,
+        [string]$Target
+    )
+
+    if (-not (Test-Path -LiteralPath $Target)) {
+        return
+    }
+
+    $item = Get-Item -LiteralPath $Target -Force
+    if (-not ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        return
+    }
+
+    $existingLink = $item.Target
+    $normalizedSource = $Source.Replace('/', '\\')
+    $normalizedExisting = if ($null -ne $existingLink) { $existingLink.Replace('/', '\\') } else { "" }
+    if ($normalizedExisting -ne $normalizedSource) {
+        return
+    }
+
+    Remove-Item -LiteralPath $Target -Force
+
+    $relTarget = $Target
+    if ($Target.StartsWith($HomePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $relTarget = "~/" + $Target.Substring($HomePath.Length).TrimStart([char]'\\', [char]'/')
+    }
+
+    Write-Host ("remove {0}" -f $relTarget)
+    $script:removed++
+}
+
 Write-Host ""
 Write-Host "Global symlinks:"
+
+if ($VSCodeEffectiveProfileDirs.Count -gt 0) {
+    Write-Host ("VS Code-style profile targets ({0}):" -f $VSCodeEffectiveProfileDirs.Count)
+    foreach ($profileDir in $VSCodeEffectiveProfileDirs) {
+        if ($profileDir.StartsWith($HomePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $rel = $profileDir.Substring($HomePath.Length).TrimStart([char]'\\', [char]'/')
+            Write-Host ("  - ~/{0}" -f $rel)
+        } else {
+            Write-Host ("  - {0}" -f $profileDir)
+        }
+    }
+} else {
+    Write-Host "VS Code-style profile targets: 0"
+}
+
+if ($VSCodeSkippedRootDirs.Count -gt 0) {
+    Write-Host ("Skipped root profiles to prevent duplicates ({0}):" -f $VSCodeSkippedRootDirs.Count)
+    foreach ($profileDir in $VSCodeSkippedRootDirs) {
+        if ($profileDir.StartsWith($HomePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $rel = $profileDir.Substring($HomePath.Length).TrimStart([char]'\\', [char]'/')
+            Write-Host ("  - ~/{0}" -f $rel)
+        } else {
+            Write-Host ("  - {0}" -f $profileDir)
+        }
+    }
+}
 
 # Symlink commands
 foreach ($file in $commandFiles) {
@@ -724,6 +930,15 @@ foreach ($file in $commandFiles) {
     Safe-Symlink -Source (Join-Path $Root ".claude/commands/$name.md") -Target (Join-Path $ClaudeGlobal "commands/$name.md")
     # Cursor
     Safe-Symlink -Source (Join-Path $Root ".cursor/commands/$name.md") -Target (Join-Path $CursorGlobal "commands/$name.md")
+
+    # VS Code / VSCodium profiles
+    foreach ($profileDir in $VSCodeEffectiveProfileDirs) {
+        Safe-Symlink -Source (Join-Path $Root ".github/prompts/$name.prompt.md") -Target (Join-Path $profileDir "prompts/$name.prompt.md")
+    }
+
+    foreach ($profileDir in $VSCodeSkippedRootDirs) {
+        Remove-ManagedSymlink -Source (Join-Path $Root ".github/prompts/$name.prompt.md") -Target (Join-Path $profileDir "prompts/$name.prompt.md")
+    }
 }
 
 # Helper: convert PSCustomObject to ordered hashtable (PS 5.1 compat)
@@ -742,6 +957,63 @@ function ConvertTo-OrderedHash {
         }
     }
     return $hash
+}
+
+function ConvertTo-LocationMap {
+    param($Value)
+
+    $map = [ordered]@{}
+    if ($null -eq $Value) {
+        return $map
+    }
+
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $Value = ConvertTo-OrderedHash $Value
+    }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        foreach ($key in $Value.Keys) {
+            $pathKey = "$key"
+            if (-not [string]::IsNullOrWhiteSpace($pathKey)) {
+                $flag = $true
+                try {
+                    $flag = [System.Convert]::ToBoolean($Value[$key])
+                } catch {}
+                $map[$pathKey] = $flag
+            }
+        }
+        return $map
+    }
+
+    if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+        foreach ($entry in $Value) {
+            if ($entry -is [string]) {
+                if (-not [string]::IsNullOrWhiteSpace($entry)) {
+                    $map[$entry] = $true
+                }
+                continue
+            }
+
+            if ($entry -is [System.Management.Automation.PSCustomObject]) {
+                $entry = ConvertTo-OrderedHash $entry
+            }
+
+            if ($entry -is [System.Collections.IDictionary]) {
+                foreach ($k in $entry.Keys) {
+                    $pathKey = "$k"
+                    if (-not [string]::IsNullOrWhiteSpace($pathKey)) {
+                        $flag = $true
+                        try {
+                            $flag = [System.Convert]::ToBoolean($entry[$k])
+                        } catch {}
+                        $map[$pathKey] = $flag
+                    }
+                }
+            }
+        }
+    }
+
+    return $map
 }
 
 # Symlink MCP configs
@@ -772,8 +1044,14 @@ if (Test-Path -LiteralPath $SharedMcpFile) {
     # Cursor: ~/.cursor/mcp.json (standalone, symlink/copy)
     Safe-Symlink -Source (Join-Path $Root ".cursor/mcp.json") -Target (Join-Path $CursorGlobal "mcp.json")
 
-    # VS Code: %APPDATA%/Code/User/mcp.json (standalone, symlink/copy)
-    Safe-Symlink -Source (Join-Path $Root ".vscode/mcp.json") -Target (Join-Path $VSCodeGlobal "mcp.json")
+    # VS Code / VSCodium profiles: profile-level mcp.json
+    foreach ($profileDir in $VSCodeEffectiveProfileDirs) {
+        Safe-Symlink -Source (Join-Path $Root ".vscode/mcp.json") -Target (Join-Path $profileDir "mcp.json")
+    }
+
+    foreach ($profileDir in $VSCodeSkippedRootDirs) {
+        Remove-ManagedSymlink -Source (Join-Path $Root ".vscode/mcp.json") -Target (Join-Path $profileDir "mcp.json")
+    }
 
     # OpenCode: merge mcp key into ~/.config/opencode/opencode.json
     $ocGlobalPath = Join-Path $OpenCodeGlobal "opencode.json"
@@ -818,18 +1096,19 @@ foreach ($skillDir in $skillDirs) {
     Safe-Symlink -Source (Join-Path $Root ".cursor/skills/$name/SKILL.md")    -Target (Join-Path $CursorGlobal    "skills/$name/SKILL.md")
 }
 
-# ── VS Code: update global settings.json for agents + skills ─────────
-if (Test-Path -LiteralPath $VSCodeGlobal) {
-    $vsCodeSettingsPath = Join-Path $VSCodeGlobal "settings.json"
-    $vsCodeSettingsObj  = [ordered]@{}
-    $vsCodeSettingsOk   = $true
+# ── VS Code-style profiles: update settings.json for agents + skills ──
+if ($VSCodeEffectiveProfileDirs.Count -gt 0) {
+    foreach ($profileDir in $VSCodeEffectiveProfileDirs) {
+        $vsCodeSettingsPath = Join-Path $profileDir "settings.json"
+        $vsCodeSettingsObj = [ordered]@{}
+        $vsCodeSettingsOk = $true
 
     if (Test-Path -LiteralPath $vsCodeSettingsPath) {
         try {
             $parsed = [System.IO.File]::ReadAllText($vsCodeSettingsPath) | ConvertFrom-Json
             $vsCodeSettingsObj = ConvertTo-OrderedHash $parsed
         } catch {
-            Write-Host "WARN  Could not parse VS Code settings.json — skipping settings update."
+            Write-Host ("WARN  Could not parse {0} — skipping settings update for this profile." -f $vsCodeSettingsPath)
             $vsCodeSettingsOk = $false
         }
     }
@@ -837,37 +1116,21 @@ if (Test-Path -LiteralPath $VSCodeGlobal) {
     if ($vsCodeSettingsOk) {
         # chat.agentFilesLocations — add .github/agents as a persistent global source
         $agentLocKey = "chat.agentFilesLocations"
-        $agentLocArr = @()
-        if ($vsCodeSettingsObj.Contains($agentLocKey)) {
-            $existing = $vsCodeSettingsObj[$agentLocKey]
-            if ($existing -is [System.Array] -or $existing -is [System.Collections.IEnumerable]) {
-                $agentLocArr = @($existing | ForEach-Object { "$_" })
-            }
-        }
-        $githubAgentsPath = (Join-Path $Root ".github" "agents").Replace('\', '/')
-        if ($agentLocArr -notcontains $githubAgentsPath) {
-            $agentLocArr += $githubAgentsPath
-        }
-        $vsCodeSettingsObj[$agentLocKey] = $agentLocArr
+        $agentLocMap = ConvertTo-LocationMap -Value $vsCodeSettingsObj[$agentLocKey]
+        $githubAgentsPath = (Join-Path $Root ".github/agents").Replace('\\', '/')
+        $agentLocMap[$githubAgentsPath] = $true
+        $vsCodeSettingsObj[$agentLocKey] = $agentLocMap
 
         # chat.agentSkillsLocations — add .github/skills if skills are present
         if ($skillDirs.Count -gt 0) {
             $skillLocKey = "chat.agentSkillsLocations"
-            $skillLocArr = @()
-            if ($vsCodeSettingsObj.Contains($skillLocKey)) {
-                $existing = $vsCodeSettingsObj[$skillLocKey]
-                if ($existing -is [System.Array] -or $existing -is [System.Collections.IEnumerable]) {
-                    $skillLocArr = @($existing | ForEach-Object { "$_" })
-                }
-            }
-            $githubSkillsPath = (Join-Path $Root ".github" "skills").Replace('\', '/')
-            if ($skillLocArr -notcontains $githubSkillsPath) {
-                $skillLocArr += $githubSkillsPath
-            }
-            $vsCodeSettingsObj[$skillLocKey] = $skillLocArr
+            $skillLocMap = ConvertTo-LocationMap -Value $vsCodeSettingsObj[$skillLocKey]
+            $githubSkillsPath = (Join-Path $Root ".github/skills").Replace('\\', '/')
+            $skillLocMap[$githubSkillsPath] = $true
+            $vsCodeSettingsObj[$skillLocKey] = $skillLocMap
         }
 
-        $newVsCodeSettings = ($vsCodeSettingsObj | ConvertTo-Json -Depth 10) -replace "`r`n", "`n"
+        $newVsCodeSettings = ($vsCodeSettingsObj | ConvertTo-Json -Depth 20) -replace "`r`n", "`n"
         $newVsCodeSettings = "$newVsCodeSettings`n"
         $vsCodeSettingsStatus = "write"
         if (Test-Path -LiteralPath $vsCodeSettingsPath) {
@@ -877,11 +1140,23 @@ if (Test-Path -LiteralPath $VSCodeGlobal) {
         if ($vsCodeSettingsStatus -eq "write") {
             [System.IO.File]::WriteAllText($vsCodeSettingsPath, $newVsCodeSettings, [System.Text.UTF8Encoding]::new($false))
         }
-        Write-Host ("{0,-5} %APPDATA%/Code/User/settings.json (chat.agentFilesLocations)" -f $vsCodeSettingsStatus)
-        if ($vsCodeSettingsStatus -eq "write") { $script:copied++ } else { $script:linkSkipped++ }
+
+        if ($profileDir.StartsWith($HomePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $profileLabel = "~/" + $profileDir.Substring($HomePath.Length).TrimStart([char]'\\', [char]'/')
+        } else {
+            $profileLabel = $profileDir
+        }
+
+        Write-Host ("{0,-5} {1}/settings.json (chat.agentFilesLocations)" -f $vsCodeSettingsStatus, $profileLabel)
+        if ($vsCodeSettingsStatus -eq "write") {
+            $script:copied++
+        } else {
+            $script:linkSkipped++
+        }
+    }
     }
 } else {
-    Write-Host "skip  VS Code not found at $VSCodeGlobal"
+    Write-Host "skip  VS Code profiles not found under known locations"
 }
 
 Write-Host ""
@@ -895,6 +1170,9 @@ if ($copied -gt 0) {
 Write-Host "- unchanged: $linkSkipped"
 if ($backedUp -gt 0) {
     Write-Host "- backed up: $backedUp"
+}
+if ($removed -gt 0) {
+    Write-Host "- removed legacy links: $removed"
 }
 if ($symlinkFailed) {
     Write-Host ""
@@ -922,9 +1200,10 @@ Write-Host "    global    : ~/.cursor/commands  agents  skills  mcp.json  (symli
 Write-Host ""
 Write-Host "  VS Code Copilot"
 Write-Host "    workspace : .github/prompts  .github/agents  .github/skills  .vscode/mcp.json"
-Write-Host "    global MCP: %APPDATA%/Code/User/mcp.json  (symlinked)"
-Write-Host "    global agents/skills: %APPDATA%/Code/User/settings.json"
-Write-Host "      chat.agentFilesLocations  -> .github/agents"
+Write-Host ("    global    : detected profiles ({0})" -f $VSCodeEffectiveProfileDirs.Count)
+Write-Host "      prompts/*.prompt.md -> <profile>/prompts/  (symlinked)"
+Write-Host "      mcp.json            -> <profile>/mcp.json  (symlinked)"
+Write-Host "      settings.json       -> chat.agentFilesLocations"
 if ($skillDirs.Count -gt 0) {
 Write-Host "      chat.agentSkillsLocations -> .github/skills"
 }

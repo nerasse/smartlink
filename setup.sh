@@ -623,16 +623,145 @@ printf -- '- unchanged: %s\n' "$unchanged"
 OPENCODE_GLOBAL="$HOME/.config/opencode"
 CLAUDE_GLOBAL="$HOME/.claude"
 CURSOR_GLOBAL="$HOME/.cursor"
+
 if [[ "$(uname)" == "Darwin" ]]; then
-  VSCODE_GLOBAL="$HOME/Library/Application Support/Code/User"
+  VSCODE_USER_ROOTS=(
+    "$HOME/Library/Application Support/Code/User"
+    "$HOME/Library/Application Support/Code - Insiders/User"
+    "$HOME/Library/Application Support/VSCodium/User"
+    "$HOME/Library/Application Support/VSCodium - Insiders/User"
+  )
 else
-  VSCODE_GLOBAL="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User"
+  CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+  VSCODE_USER_ROOTS=(
+    "$CONFIG_HOME/Code/User"
+    "$CONFIG_HOME/Code - Insiders/User"
+    "$CONFIG_HOME/VSCodium/User"
+    "$CONFIG_HOME/VSCodium - Insiders/User"
+  )
 fi
+
+VSCODE_REMOTE_ROOTS=(
+  "$HOME/.vscode-server/data/User"
+  "$HOME/.vscode-server-insiders/data/User"
+  "$HOME/.vscode-remote/data/User"
+  "$HOME/.vscode-remote-insiders/data/User"
+)
+
+VSCODE_PROFILE_DIRS=()
+
+add_vscode_profile_dir() {
+  local dir="$1"
+  local existing
+
+  if [ ! -d "$dir" ]; then
+    return 0
+  fi
+
+  for existing in "${VSCODE_PROFILE_DIRS[@]:-}"; do
+    if [ "$existing" = "$dir" ]; then
+      return
+    fi
+  done
+
+  VSCODE_PROFILE_DIRS+=("$dir")
+}
+
+collect_vscode_profiles() {
+  local user_root="$1"
+  local profiles_root
+  local profile_dir
+
+  if [ ! -d "$user_root" ]; then
+    return 0
+  fi
+
+  add_vscode_profile_dir "$user_root"
+
+  profiles_root="$user_root/profiles"
+  if [ ! -d "$profiles_root" ]; then
+    return 0
+  fi
+
+  for profile_dir in "$profiles_root"/*; do
+    [ -d "$profile_dir" ] || continue
+    add_vscode_profile_dir "$profile_dir"
+  done
+}
+
+for root in "${VSCODE_USER_ROOTS[@]}"; do
+  collect_vscode_profiles "$root"
+done
+
+for root in "${VSCODE_REMOTE_ROOTS[@]}"; do
+  collect_vscode_profiles "$root"
+done
+
+VSCODE_EFFECTIVE_PROFILE_DIRS=()
+VSCODE_SKIPPED_ROOT_DIRS=()
+
+add_vscode_effective_profile_dir() {
+  local dir="$1"
+  local existing
+
+  [ -d "$dir" ] || return 0
+
+  for existing in "${VSCODE_EFFECTIVE_PROFILE_DIRS[@]:-}"; do
+    if [ "$existing" = "$dir" ]; then
+      return 0
+    fi
+  done
+
+  VSCODE_EFFECTIVE_PROFILE_DIRS+=("$dir")
+}
+
+add_vscode_skipped_root_dir() {
+  local dir="$1"
+  local existing
+
+  [ -d "$dir" ] || return 0
+
+  for existing in "${VSCODE_SKIPPED_ROOT_DIRS[@]:-}"; do
+    if [ "$existing" = "$dir" ]; then
+      return 0
+    fi
+  done
+
+  VSCODE_SKIPPED_ROOT_DIRS+=("$dir")
+}
+
+for profile_dir in "${VSCODE_PROFILE_DIRS[@]}"; do
+  if [[ "$profile_dir" == */profiles/* ]]; then
+    add_vscode_effective_profile_dir "$profile_dir"
+  fi
+done
+
+for profile_dir in "${VSCODE_PROFILE_DIRS[@]}"; do
+  local_has_named=0
+
+  if [[ "$profile_dir" == */profiles/* ]]; then
+    continue
+  fi
+
+  for candidate_dir in "${VSCODE_PROFILE_DIRS[@]}"; do
+    if [[ "$candidate_dir" == "$profile_dir/profiles/"* ]]; then
+      local_has_named=1
+      break
+    fi
+  done
+
+  if [ "$local_has_named" -eq 1 ]; then
+    add_vscode_skipped_root_dir "$profile_dir"
+  else
+    add_vscode_effective_profile_dir "$profile_dir"
+  fi
+done
 
 symlinked=0
 copied=0
 skipped=0
 backed_up=0
+removed=0
 
 # Probe: test if symlinks are available on this system
 symlink_failed=0
@@ -693,7 +822,57 @@ safe_symlink() {
   fi
 }
 
+remove_managed_symlink() {
+  local source="$1"
+  local target="$2"
+  local rel_target existing_link
+
+  [ -L "$target" ] || return 0
+
+  existing_link="$(readlink "$target")"
+  if [ "$existing_link" != "$source" ]; then
+    return 0
+  fi
+
+  rm -f "$target"
+
+  rel_target="${target#$HOME/}"
+  if [ "$rel_target" = "$target" ]; then
+    printf 'remove %s
+  else
+    printf 'remove ~/%s
+  fi
+
+  removed=$((removed + 1))
+}
+
 printf '\nGlobal symlinks:\n'
+
+if [ "${#VSCODE_EFFECTIVE_PROFILE_DIRS[@]}" -gt 0 ]; then
+  printf 'VS Code-style profile targets (%s):\n' "${#VSCODE_EFFECTIVE_PROFILE_DIRS[@]}"
+  for profile_dir in "${VSCODE_EFFECTIVE_PROFILE_DIRS[@]}"; do
+    profile_rel="${profile_dir#$HOME/}"
+    if [ "$profile_rel" = "$profile_dir" ]; then
+      printf '  - %s\n' "$profile_dir"
+    else
+      printf '  - ~/%s\n' "$profile_rel"
+    fi
+  done
+else
+  printf 'VS Code-style profile targets: 0\n'
+fi
+
+if [ "${#VSCODE_SKIPPED_ROOT_DIRS[@]}" -gt 0 ]; then
+  printf 'Skipped root profiles to prevent duplicates (%s):\n' "${#VSCODE_SKIPPED_ROOT_DIRS[@]}"
+  for profile_dir in "${VSCODE_SKIPPED_ROOT_DIRS[@]}"; do
+    profile_rel="${profile_dir#$HOME/}"
+    if [ "$profile_rel" = "$profile_dir" ]; then
+      printf '  - %s\n' "$profile_dir"
+    else
+      printf '  - ~/%s\n' "$profile_rel"
+    fi
+  done
+fi
 
 # Symlink commands
 for file in "$SHARED_COMMANDS_DIR"/*.md; do
@@ -706,6 +885,16 @@ for file in "$SHARED_COMMANDS_DIR"/*.md; do
   safe_symlink "$ROOT/.claude/commands/$name.md" "$CLAUDE_GLOBAL/commands/$name.md"
   # Cursor
   safe_symlink "$ROOT/.cursor/commands/$name.md" "$CURSOR_GLOBAL/commands/$name.md"
+
+  # VS Code / VSCodium profiles
+  for profile_dir in "${VSCODE_EFFECTIVE_PROFILE_DIRS[@]}"; do
+    safe_symlink "$ROOT/.github/prompts/$name.prompt.md" "$profile_dir/prompts/$name.prompt.md"
+  done
+
+  # Cleanup legacy root symlinks that can cause duplicate prompt entries
+  for profile_dir in "${VSCODE_SKIPPED_ROOT_DIRS[@]}"; do
+    remove_managed_symlink "$ROOT/.github/prompts/$name.prompt.md" "$profile_dir/prompts/$name.prompt.md"
+  done
 done
 
 # Symlink MCP configs
@@ -737,8 +926,15 @@ console.log(JSON.stringify(existing, null, 2));
   # Cursor: ~/.cursor/mcp.json (standalone, symlink/copy)
   safe_symlink "$ROOT/.cursor/mcp.json" "$CURSOR_GLOBAL/mcp.json"
 
-  # VS Code: global user-level mcp.json
-  safe_symlink "$ROOT/.vscode/mcp.json" "$VSCODE_GLOBAL/mcp.json"
+  # VS Code / VSCodium profiles: profile-level mcp.json
+  for profile_dir in "${VSCODE_EFFECTIVE_PROFILE_DIRS[@]}"; do
+    safe_symlink "$ROOT/.vscode/mcp.json" "$profile_dir/mcp.json"
+  done
+
+  # Cleanup legacy root-level MCP symlinks
+  for profile_dir in "${VSCODE_SKIPPED_ROOT_DIRS[@]}"; do
+    remove_managed_symlink "$ROOT/.vscode/mcp.json" "$profile_dir/mcp.json"
+  done
 
   # OpenCode: merge mcp key into ~/.config/opencode/opencode.json
   oc_global_path="$OPENCODE_GLOBAL/opencode.json"
@@ -785,48 +981,124 @@ for skill_dir in "${skill_dirs[@]}"; do
   safe_symlink "$ROOT/.cursor/skills/$name/SKILL.md"    "$CURSOR_GLOBAL/skills/$name/SKILL.md"
 done
 
-# ── VS Code: update global settings.json for agents + skills ─────────
-if [ -d "$VSCODE_GLOBAL" ]; then
-  vscode_settings_path="$VSCODE_GLOBAL/settings.json"
+# ── VS Code-style profiles: update settings.json for agents + skills ──
+if [ "${#VSCODE_EFFECTIVE_PROFILE_DIRS[@]}" -gt 0 ]; then
   if command -v node &>/dev/null; then
     _skills_arg=""
     [ "$skill_count" -gt 0 ] && _skills_arg="$ROOT/.github/skills"
 
-    new_vscode_settings="$(node -e "
+    for profile_dir in "${VSCODE_EFFECTIVE_PROFILE_DIRS[@]}"; do
+      vscode_settings_path="$profile_dir/settings.json"
+
+      if new_vscode_settings="$(node -e "
 const fs = require('fs');
+const vm = require('vm');
 const [settingsPath, agentsPath, skillsPath] = process.argv.slice(1);
+
+const parseSettings = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  try {
+    return vm.runInNewContext('(' + text + ')', Object.create(null), { timeout: 1000 });
+  } catch {}
+
+  return null;
+};
+
+const toLocationMap = (value) => {
+  const map = {};
+
+  if (!value) {
+    return map;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === 'string' && entry.trim()) {
+        map[entry] = true;
+        continue;
+      }
+      if (entry && typeof entry === 'object') {
+        for (const [k, v] of Object.entries(entry)) {
+          if (k && k.trim()) {
+            map[k] = Boolean(v);
+          }
+        }
+      }
+    }
+    return map;
+  }
+
+  if (typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      if (k && k.trim()) {
+        map[k] = Boolean(v);
+      }
+    }
+  }
+
+  return map;
+};
+
 let existing = {};
-try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
-const key = 'chat.agentFilesLocations';
-const arr = Array.isArray(existing[key]) ? [...existing[key]] : [];
-if (!arr.includes(agentsPath)) arr.push(agentsPath);
-existing[key] = arr;
-if (skillsPath) {
-  const key2 = 'chat.agentSkillsLocations';
-  const arr2 = Array.isArray(existing[key2]) ? [...existing[key2]] : [];
-  if (!arr2.includes(skillsPath)) arr2.push(skillsPath);
-  existing[key2] = arr2;
+if (fs.existsSync(settingsPath)) {
+  const parsed = parseSettings(fs.readFileSync(settingsPath, 'utf8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    process.exit(3);
+  }
+  existing = parsed;
 }
+
+const ensureLocation = (key, path) => {
+  const map = toLocationMap(existing[key]);
+  map[path] = true;
+  existing[key] = map;
+};
+
+ensureLocation('chat.agentFilesLocations', agentsPath);
+if (skillsPath) {
+  ensureLocation('chat.agentSkillsLocations', skillsPath);
+}
+
 console.log(JSON.stringify(existing, null, 2));
-" "$vscode_settings_path" "$ROOT/.github/agents" "$_skills_arg")"
-    if [ -n "$new_vscode_settings" ]; then
-      tmp_vscode="$(mktemp)"
-      printf '%s\n' "$new_vscode_settings" > "$tmp_vscode"
-      if [ -f "$vscode_settings_path" ] && cmp -s "$vscode_settings_path" "$tmp_vscode"; then
-        printf 'ok    ~/.../Code/User/settings.json (chat.agentFilesLocations)\n'
-        skipped=$((skipped + 1))
+" "$vscode_settings_path" "$ROOT/.github/agents" "$_skills_arg" 2>/dev/null)"; then
+        tmp_vscode="$(mktemp)"
+        printf '%s\n' "$new_vscode_settings" > "$tmp_vscode"
+
+        profile_rel="${profile_dir#$HOME/}"
+        if [ "$profile_rel" = "$profile_dir" ]; then
+          profile_label="$profile_dir"
+        else
+          profile_label="~/$profile_rel"
+        fi
+
+        if [ -f "$vscode_settings_path" ] && cmp -s "$vscode_settings_path" "$tmp_vscode"; then
+          printf 'ok    %s/settings.json (chat.agentFilesLocations)\n' "$profile_label"
+          skipped=$((skipped + 1))
+        else
+          mv "$tmp_vscode" "$vscode_settings_path"
+          printf 'write %s/settings.json (chat.agentFilesLocations)\n' "$profile_label"
+          copied=$((copied + 1))
+        fi
+
+        rm -f "$tmp_vscode" 2>/dev/null
       else
-        mv "$tmp_vscode" "$vscode_settings_path"
-        printf 'write ~/.../Code/User/settings.json (chat.agentFilesLocations)\n'
-        copied=$((copied + 1))
+        profile_rel="${profile_dir#$HOME/}"
+        if [ "$profile_rel" = "$profile_dir" ]; then
+          profile_label="$profile_dir"
+        else
+          profile_label="~/$profile_rel"
+        fi
+        printf 'skip  %s/settings.json (unsupported JSON/JSONC)\n' "$profile_label"
       fi
-      rm -f "$tmp_vscode" 2>/dev/null
-    fi
+    done
   else
-    printf 'skip  VS Code settings.json — node not found\n'
+    printf 'skip  VS Code settings.json updates — node not found\n'
   fi
 else
-  printf 'skip  VS Code not found at %s\n' "$VSCODE_GLOBAL"
+  printf 'skip  VS Code profiles not found under known locations\n'
 fi
 
 printf '\nSymlink summary:\n'
@@ -839,6 +1111,9 @@ fi
 printf -- '- unchanged: %s\n' "$skipped"
 if [ "$backed_up" -gt 0 ]; then
   printf -- '- backed up: %s\n' "$backed_up"
+fi
+if [ "$removed" -gt 0 ]; then
+  printf -- '- removed legacy links: %s\n' "$removed"
 fi
 if [ "$symlink_failed" -eq 1 ]; then
   printf '\n'
@@ -865,9 +1140,10 @@ printf '    global    : ~/.cursor/commands  agents  skills  mcp.json  (symlinked
 printf '\n'
 printf '  VS Code Copilot\n'
 printf '    workspace : .github/prompts  .github/agents  .github/skills  .vscode/mcp.json\n'
-printf '    global MCP: ~/.config/Code/User/mcp.json  (symlinked)\n'
-printf '    global agents/skills: ~/.config/Code/User/settings.json\n'
-printf '      chat.agentFilesLocations  -> .github/agents\n'
+printf '    global    : detected profiles (%s)\n' "${#VSCODE_EFFECTIVE_PROFILE_DIRS[@]}"
+printf '      prompts/*.prompt.md -> <profile>/prompts/  (symlinked)\n'
+printf '      mcp.json            -> <profile>/mcp.json  (symlinked)\n'
+printf '      settings.json       -> chat.agentFilesLocations\n'
 [ "$skill_count" -gt 0 ] && printf '      chat.agentSkillsLocations -> .github/skills\n'
 printf '\n'
 printf '  All generated from the same canonical source in pack/shared/.\n'

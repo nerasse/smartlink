@@ -85,7 +85,7 @@ Goal: propose a commit message from staged git changes.
 | Claude Code | `.claude/commands/<name>.md` | `~/.claude/commands/` |
 | Cursor | `.cursor/commands/<name>.md` | `~/.cursor/commands/` |
 | OpenCode | `.opencode/commands/<name>.md` | `~/.config/opencode/commands/` |
-| VS Code | `.github/prompts/<name>.prompt.md` | via `settings.json` (see below) |
+| VS Code | `.github/prompts/<name>.prompt.md` | `<profile>/prompts/<name>.prompt.md` (symlinked) |
 
 ### Supported frontmatter keys
 
@@ -147,7 +147,7 @@ You are a deep web research agent...
 | Claude Code | `.claude/agents/<name>.md` | `~/.claude/agents/` |
 | Cursor | `.cursor/agents/<name>.md` | `~/.cursor/agents/` |
 | OpenCode | `.opencode/agents/<name>.md` | `~/.config/opencode/agents/` |
-| VS Code | `.github/agents/<name>.agent.md` | via `settings.json` |
+| VS Code | `.github/agents/<name>.agent.md` | `settings.json` in each detected profile |
 
 ### Supported frontmatter keys
 
@@ -221,7 +221,7 @@ A skill directory can also contain supporting files (references, scripts, templa
 | Claude Code | `.claude/skills/<name>/SKILL.md` | `~/.claude/skills/` |
 | Cursor | `.cursor/skills/<name>/SKILL.md` | `~/.cursor/skills/` |
 | OpenCode | `.opencode/skills/<name>/SKILL.md` | `~/.config/opencode/skills/` |
-| VS Code | `.github/skills/<name>/SKILL.md` | via `settings.json` |
+| VS Code | `.github/skills/<name>/SKILL.md` | `settings.json` in each detected profile |
 
 ### Supported frontmatter keys
 
@@ -303,7 +303,7 @@ If `type` is omitted: `stdio` when `command` is present, `http` when only `url` 
 |---|---|---|
 | Claude Code | `.mcp.json` | `~/.claude.json` (`mcpServers` key merged) |
 | Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` (symlinked) |
-| VS Code | `.vscode/mcp.json` | `Code/User/mcp.json` (symlinked) |
+| VS Code | `.vscode/mcp.json` | `<profile>/mcp.json` (symlinked in each detected profile) |
 | OpenCode | *(in opencode.json)* | `~/.config/opencode/opencode.json` (`mcp` key merged) |
 
 ### Variable interpolation
@@ -330,16 +330,30 @@ Setup deploys everything to user-level config directories so agents, commands, s
 | Claude Code | `~/.claude/commands/` | `~/.claude/agents/` | `~/.claude/skills/` | `~/.claude.json` merge |
 | Cursor | `~/.cursor/commands/` | `~/.cursor/agents/` | `~/.cursor/skills/` | `~/.cursor/mcp.json` |
 | OpenCode | `~/.config/opencode/commands/` | `~/.config/opencode/agents/` | `~/.config/opencode/skills/` | `opencode.json` merge |
-| VS Code | `settings.json` * | `settings.json` * | `settings.json` * | `Code/User/mcp.json` |
+| VS Code | `<profile>/prompts/` symlinks | `settings.json` * | `settings.json` * | `<profile>/mcp.json` symlinks |
 
-\* VS Code has no fixed global directory for agents/skills/prompts. Setup adds paths to `Code/User/settings.json`:
+\* For VS Code, setup updates `chat.agentFilesLocations` / `chat.agentSkillsLocations` in each detected profile `settings.json`:
 
 ```json
 {
-  "chat.agentFilesLocations": ["/path/to/smartlink/.github/agents"],
-  "chat.agentSkillsLocations": ["/path/to/smartlink/.github/skills"]
+  "chat.agentFilesLocations": {
+    "/path/to/smartlink/.github/agents": true
+  },
+  "chat.agentSkillsLocations": {
+    "/path/to/smartlink/.github/skills": true
+  }
 }
 ```
+
+Detected VS Code-style profile roots include local installs and remote contexts (SSH/WSL/containers when present), including profile subfolders:
+
+- Windows user config: `%APPDATA%/Code/User`, `%APPDATA%/Code - Insiders/User`, `%APPDATA%/VSCodium/User`, `%APPDATA%/VSCodium - Insiders/User`
+- macOS user config: `~/Library/Application Support/Code/User`, `~/Library/Application Support/Code - Insiders/User`, `~/Library/Application Support/VSCodium/User`, `~/Library/Application Support/VSCodium - Insiders/User`
+- Linux user config: `~/.config/Code/User`, `~/.config/Code - Insiders/User`, `~/.config/VSCodium/User`, `~/.config/VSCodium - Insiders/User`
+- Remote server data: `~/.vscode-server/data/User`, `~/.vscode-server-insiders/data/User`, `~/.vscode-remote/data/User`, `~/.vscode-remote-insiders/data/User`
+- For each root, setup also detects `profiles/<profile-id>/`
+
+When both a root profile (`.../User`) and named profiles (`.../User/profiles/<id>`) exist, setup targets named profiles and skips root prompt/MCP links to avoid duplicate slash-command entries.
 
 ### Symlinks vs copies
 

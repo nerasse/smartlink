@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-03-03
+
+### Added
+
+- VS Code profile discovery in `setup.sh` and `setup.ps1`: setup now detects Code/Code Insiders/VSCodium user and remote roots, includes `profiles/<profile-id>/`, and deploys prompts plus `mcp.json` per effective profile
+
+### Changed
+
+- VS Code deployment now prefers named profiles over root `User` paths when both exist, and removes managed legacy root symlinks to prevent duplicate command/MCP entries
+- VS Code `settings.json` updates now normalize `chat.agentFilesLocations` and `chat.agentSkillsLocations` as location maps across detected profiles, improving compatibility with existing settings shapes
+
 ## [v0.0.8] - 2026-03-01
 
 ### Added
