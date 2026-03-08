@@ -1,6 +1,6 @@
 ---
 name: changelog
-description: Update changelog files from staged git changes
+description: Update changelog files and suggest a commit message from staged git changes
 argument-hint: "[version|help]"
 
 # ==================================================================================
@@ -50,10 +50,10 @@ claude.disable-model-invocation: true
 # vscode.model: ['GPT-5.2','Claude Sonnet 4.5']
 # vscode.tools: ['search','read','editFiles','terminalLastCommand','githubRepo','my-mcp/*']
 # vscode.extra.name: changelog
-# vscode.extra.description: Update changelog files from staged git changes
+# vscode.extra.description: Update changelog files and suggest a commit message from staged git changes
 vscode.agent: agent
 ---
-Goal: update changelog file(s) from staged git changes only.
+Goal: update changelog file(s) from staged git changes only, then propose a `concise` commit message for the resulting work.
 
 Modes:
 
@@ -66,13 +66,15 @@ Rules:
 - Inspect staged changes only.
 - Never run `git add`, commit, or push.
 - Allowed git commands are read-only (`git status`, `git diff`, `git log`, `git show`).
-- If `AGENTS.md` includes changelog directives, follow them.
+- If `AGENTS.md` includes changelog or commit-message directives, follow them.
 - Keep a Changelog structure and do not rewrite historical releases unless explicitly requested.
 - In monorepos, group entries by package, then by feature.
 - User-facing entries must be clear for both beginners and experts.
 - Keep entries concise, actionable, and deduplicated.
 - Ignore documentation-only or ancillary resource changes (for example `docs/`, `README*`, guides, images, assets, notes).
 - If nothing is staged, do not edit changelog files.
+- The proposed commit message must stay consistent with the staged changes and the changelog edits you just made.
+- Use conventional commit prefixes: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`, `build`.
 
 Type mapping:
 
@@ -84,4 +86,5 @@ Type mapping:
 Output:
 
 - Clean diff on updated changelog file(s).
+- Suggested commit message in `concise` format.
 - 3-5 bullet recap of what changed and why.

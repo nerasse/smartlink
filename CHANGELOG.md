@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-03-08
+
+### Changed
+
+- `/commit` command (`pack/shared/commands/commit.md`): now mirrors the release preflight by updating affected documentation, refreshing `## [Unreleased]` changelog entries from staged changes, staging those edits, and creating the commit without tagging or pushing
+- `/changelog` command (`pack/shared/commands/changelog.md`): now also proposes a `normal` commit message after updating the changelog so the next commit can be created immediately without running `/commit` separately
+
 ## [0.0.9] - 2026-03-03
 
 ### Added

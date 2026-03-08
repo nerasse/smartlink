@@ -69,12 +69,12 @@ Slash commands / prompt files that the user triggers manually (e.g. `/commit`, `
 ```yaml
 ---
 name: commit
-description: Propose a commit message from staged git changes
+description: Run docs, changelog, and commit from staged git changes
 argument-hint: "[short|normal|verbose|help]"
 claude.disable-model-invocation: true
 vscode.agent: agent
 ---
-Goal: propose a commit message from staged git changes.
+Goal: run a commit flow from staged git changes: update documentation, update changelog in unreleased mode, and create one commit using the requested message format.
 ...
 ```
 
@@ -108,8 +108,8 @@ Goal: propose a commit message from staged git changes.
 
 | Command | Description |
 |---|---|
-| `/commit` | Propose a conventional commit message from staged changes |
-| `/changelog` | Update changelog from staged changes (Keep a Changelog format) |
+| `/commit` | Update docs + `Unreleased` changelog, then create a commit from staged changes |
+| `/changelog` | Update changelog from staged changes and suggest a normal commit message |
 | `/documentation` | Update affected docs (README, CONTRIBUTING, etc.) from staged changes |
 | `/release` | Run docs + changelog + commit + tag + push in one release flow |
 | `/resolve-conflicts` | AI-assisted merge/rebase conflict resolution |
