@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-03-08
+
+### Changed
+
+- `/commit` and `/release` commands (`pack/shared/commands/commit.md`, `pack/shared/commands/release.md`): now scope their documentation and changelog update steps to the concrete files they are expected to touch, making the staged-change release flow more predictable
+
 ## [0.0.10] - 2026-03-08
 
 ### Changed

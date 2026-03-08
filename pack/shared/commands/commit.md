@@ -73,8 +73,8 @@ Rules:
 
 - Start from staged changes as source of truth (`git diff --cached`). If nothing is staged, say so and stop before any write operation.
 - If `AGENTS.md` exists and contains commit/changelog/documentation directives, follow them with priority.
-- Run documentation updates first (same intent as `/documentation`, staged changes only).
-- Then run changelog update in unreleased mode (same intent as `/changelog` without a version argument).
+- Run documentation updates first on files affected by staged changes: `README.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, inline doc headers, usage examples, CLI help text, and any file under `docs/`.
+- Then run changelog update in unreleased mode on any `CHANGELOG.md` file(s).
 - Only create or update `## [Unreleased]`; do not create a versioned release section, tag, or push.
 - Stage documentation/changelog edits required by this flow, then create one commit using the requested format.
 - Allowed git commands are read-only (`git status`, `git diff`, `git log`, `git show`) plus `git add` and `git commit`.

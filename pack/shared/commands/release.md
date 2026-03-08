@@ -66,8 +66,8 @@ Rules:
 - If `AGENTS.md` exists and contains release/changelog/documentation/commit/tag directives, follow it with priority.
 - If no tag naming convention is defined in `AGENTS.md`, do not enforce a format; recommend `vX.Y.Z` as option 1 and continue with the user's chosen tag.
 - Start from staged changes as source of truth. If nothing is staged, stop and explain why.
-- Run documentation updates first (same intent as `/documentation`, staged changes only).
-- Then run changelog update with the provided tag (same intent as `/changelog <tag>`).
+- Run documentation updates first on files affected by staged changes: `README.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, inline doc headers, usage examples, CLI help text, and any file under `docs/`.
+- Then run changelog update with the provided tag on any `CHANGELOG.md` file(s).
 - Stage documentation/changelog edits required by this flow, then create one release commit.
 - Commit message must be `normal` format (same standard as `/commit normal`).
 - Before creating a tag, verify whether it already exists locally or on remote. If it exists, stop and ask the user what to do.
