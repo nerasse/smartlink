@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-03-11
+
+### Changed
+
+- Replaced the duplicated `setup.sh` + `setup.ps1` implementation with a single cross-platform Node.js CLI (`smartlink.js` with `lib/generate.js`, `lib/install.js`, `lib/paths.js`, and `lib/sync.js`); `setup.sh` and `setup.cmd` are now thin compatibility wrappers and PowerShell is no longer required
+- Added optional pack support under `pack/*` plus a new interactive `smartlink sync` flow that keeps `pack/shared` global-only while linking extra packs into the current workspace with deterministic collision priority (`shared` first, then first selected pack)
+- Added `pack/packSample/` as the first example optional workspace pack
+
 ## [0.0.11] - 2026-03-08
 
 ### Changed

@@ -1,0 +1,6 @@
+{
+  "name": "packSample",
+  "title": "Pack Sample",
+  "description": "Example workspace pack with a command, agent, and skill",
+  "workspaceOnly": true
+}

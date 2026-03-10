@@ -1,4 +1,4 @@
-# Generated tool-specific wrappers (source is pack/shared/*)
+# Generated tool-specific wrappers (source is pack/*)
 .claude/
 .cursor/
 .opencode/
@@ -6,8 +6,11 @@
 .github/agents/*.agent.md
 .github/skills/
 
-# Generated MCP configs (source is pack/shared/mcp.json)
+# Generated MCP configs (source is pack/*/mcp.json)
 .mcp.json
 .vscode/mcp.json
+
+node_modules/
+.smartlink/
 
 nul
