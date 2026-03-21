@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-03-21
+
+### Added
+
+- Shared Claude hook source files under `pack/shared/claude-hooks.json` and `pack/shared/hooks/*`, including automation to load project `AGENTS.md` content at session start and to enforce `AGENTS.md` naming guidance during `/init`
+
+### Changed
+
+- `smartlink setup` now installs shared hook scripts into `~/.claude/hooks/` and merges managed hooks into `~/.claude/settings.json` using append-only deduplication so existing user hook entries remain intact
+
 ## [0.1.0] - 2026-03-11
 
 ### Changed

@@ -82,6 +82,18 @@ mcp.json
 pack.json
 ```
 
+The shared pack can also define Claude global hooks:
+
+```text
+pack/shared/claude-hooks.json
+pack/shared/hooks/*
+```
+
+During `smartlink setup`, Smartlink will:
+
+- merge `pack/shared/claude-hooks.json` into `~/.claude/settings.json` (append-only, deduped)
+- install `pack/shared/hooks/*` into `~/.claude/hooks/`
+
 ## Behavior
 
 ### `smartlink setup`
@@ -130,7 +142,7 @@ Generated outputs are written to:
 
 ## Global install targets
 
-- Claude Code: `~/.claude/commands/`, `~/.claude/agents/`, `~/.claude/skills/`, `~/.claude.json`
+- Claude Code: `~/.claude/commands/`, `~/.claude/agents/`, `~/.claude/skills/`, `~/.claude/hooks/`, `~/.claude/settings.json`, `~/.claude.json`
 - Cursor: `~/.cursor/commands/`, `~/.cursor/agents/`, `~/.cursor/skills/`, `~/.cursor/mcp.json`
 - OpenCode: `~/.config/opencode/commands/`, `~/.config/opencode/agents/`, `~/.config/opencode/skills/`, `~/.config/opencode/opencode.json`
 - VS Code Copilot: detected profile folders for prompts, MCP, and settings
