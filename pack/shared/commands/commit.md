@@ -72,10 +72,15 @@ Formats:
 Rules:
 
 - Start from staged changes as source of truth (`git diff --cached`). If nothing is staged, say so and stop before any write operation.
+- Treat this prompt as self-contained: do not rely on hidden/system prompts for documentation, changelog, or commit conventions.
 - If `AGENTS.md` exists and contains commit/changelog/documentation directives, follow them with priority.
 - Run documentation updates first on files affected by staged changes: `README.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, inline doc headers, usage examples, CLI help text, and any file under `docs/`.
+- For documentation edits, update only sections impacted by staged changes, preserve each file's existing tone/structure, add missing docs for staged new behavior, remove or mark removed behavior, and keep wording concise and accessible.
+- In monorepos, scope documentation updates to touched packages only.
 - Then run changelog update in unreleased mode on any `CHANGELOG.md` file(s).
-- Only create or update `## [Unreleased]`; do not create a versioned release section, tag, or push.
+- Keep a Keep a Changelog structure, do not rewrite historical releases, and only create or update `## [Unreleased]` (never create a versioned release section in `/commit`).
+- In changelog entries, group by package (monorepos) then feature, ignore documentation-only or ancillary resource changes, and keep entries concise, actionable, deduplicated, and clear for beginners and experts.
+- Use changelog type mapping: `feat`/`add`/`new` -> Added; `fix` -> Fixed; `refactor`/`perf` -> Changed; `chore`/`build`/`ci`/`test` -> Changed only when user-impacting, otherwise ignore.
 - Stage documentation/changelog edits required by this flow, then create one commit using the requested format.
 - Allowed git commands are read-only (`git status`, `git diff`, `git log`, `git show`) plus `git add` and `git commit`.
 - Use conventional commit prefixes: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`, `build`.
@@ -85,6 +90,7 @@ Rules:
 Output:
 
 - Clean diff for documentation/changelog updates.
+- Updated changelog section(s), limited to `## [Unreleased]`.
 - Created commit hash.
 - Final commit message in the requested format (default: `normal`).
 - 3-5 bullet recap of what was committed and why.

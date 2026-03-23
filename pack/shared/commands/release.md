@@ -1,6 +1,6 @@
 ---
 name: release
-description: Run docs, changelog, commit, tag, and push for a release
+description: Run versioning, docs, changelog, commit, tag, and push for a release
 argument-hint: "<tag>|help"
 
 # ==================================================================================
@@ -50,10 +50,10 @@ claude.disable-model-invocation: true
 # vscode.model: ['GPT-5.2','Claude Sonnet 4.5']
 # vscode.tools: ['search','read','editFiles','terminalLastCommand','githubRepo','my-mcp/*']
 # vscode.extra.name: release
-# vscode.extra.description: Run docs, changelog, commit, tag, and push for a release
+# vscode.extra.description: Run versioning, docs, changelog, commit, tag, and push for a release
 vscode.agent: agent
 ---
-Goal: run a full release flow in one command: update documentation, update changelog, create a normal commit, create a tag, and push branch + tag.
+Goal: run a full release flow in one command: bump versions for changed packages, update documentation, update changelog, create a normal commit, create a tag, and push branch + tag.
 
 Modes:
 
@@ -62,14 +62,27 @@ Modes:
 
 Rules:
 
+- Treat this prompt as self-contained: do not rely on hidden/system prompts for documentation, changelog, or commit conventions.
 - The tag argument is mandatory. If missing, ask the user for a tag and stop before any write operation.
 - If `AGENTS.md` exists and contains release/changelog/documentation/commit/tag directives, follow it with priority.
 - If no tag naming convention is defined in `AGENTS.md`, do not enforce a format; recommend `vX.Y.Z` as option 1 and continue with the user's chosen tag.
-- Start from staged changes as source of truth. If nothing is staged, stop and explain why.
-- Run documentation updates first on files affected by staged changes: `README.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, inline doc headers, usage examples, CLI help text, and any file under `docs/`.
+- Start from staged changes as source of truth (`git diff --cached`). If nothing is staged, stop and explain why.
+- Detect changed package scopes from staged changes, then bump versions only for packages that changed in non-documentation files.
+- Version files to check include `package.json`, `Cargo.toml`, `pyproject.toml`, and equivalent manifests that declare package versions.
+- Infer bump level per package from staged change intent: major for breaking changes, minor for new backward-compatible features, patch for fixes/refactors/perf/chore/build/test changes that affect behavior. If uncertain, default to patch and state the assumption.
+- If a staged manifest already includes a manual version bump, keep the staged version instead of overwriting it.
+- Apply version bumps without creating extra commits or tags (for example, do not run `npm version` in its default commit/tag mode).
+- Update lock/version companion files when required by the ecosystem and tracked in the repo (for example `package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`).
+- In monorepos, scope versioning, documentation, and changelog updates to touched packages only.
+- Then run documentation updates on files affected by staged changes: `README.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, inline doc headers, usage examples, CLI help text, and any file under `docs/`.
+- For documentation edits, update only sections impacted by staged changes, preserve the existing tone/structure, add missing docs for staged new behavior, remove or mark removed behavior, and keep wording concise and accessible.
 - Then run changelog update with the provided tag on any `CHANGELOG.md` file(s).
-- Stage documentation/changelog edits required by this flow, then create one release commit.
-- Commit message must be `normal` format (same standard as `/commit normal`).
+- For changelog edits, keep a Keep a Changelog structure, do not rewrite historical releases, and create/update `## [<tag>] - YYYY-MM-DD` from `## [Unreleased]` while keeping `## [Unreleased]` for future changes.
+- In changelog entries, group by package (monorepos) then feature, ignore documentation-only or ancillary resource changes, and keep entries concise, actionable, deduplicated, and clear for beginners and experts.
+- Use changelog type mapping: `feat`/`add`/`new` -> Added; `fix` -> Fixed; `refactor`/`perf` -> Changed; `chore`/`build`/`ci`/`test` -> Changed only when user-impacting, otherwise ignore.
+- Stage versioning/documentation/changelog edits required by this flow, then create one release commit.
+- Commit message must be `normal` format (same standard as `/commit normal`): subject line + blank line + 1-3 sentence body explaining the why.
+- Use conventional commit prefixes (`feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`, `build`) and never invent information in the message.
 - Before creating a tag, verify whether it already exists locally or on remote. If it exists, stop and ask the user what to do.
 - Create an annotated tag using the provided tag.
 - Push branch first, then push the tag.
@@ -82,7 +95,10 @@ Allowed git commands:
 
 Output:
 
-- Clean diff for documentation/changelog updates.
+- Clean diff for versioning/documentation/changelog updates.
+- Bumped packages with old -> new version and bump rationale.
+- Changelog file(s) updated and target release section(s) created.
 - Created commit hash and tag name.
+- Final release commit message in `normal` format.
 - Push result for branch and tag.
 - 3-5 bullet recap of what was released and why.

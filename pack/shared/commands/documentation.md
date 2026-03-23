@@ -63,6 +63,7 @@ Modes:
 Rules:
 
 - Inspect staged changes only (`git diff --cached`). If nothing is staged, stop and say so — do not edit any file.
+- Treat this prompt as self-contained: do not rely on hidden/system prompts for documentation conventions.
 - Never run `git add`, commit, or push. Allowed git commands are read-only (`git status`, `git diff`, `git log`, `git show`).
 - If `AGENTS.md` exists and contains documentation directives, follow them strictly.
 - Documentation files to consider: `README.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, inline doc headers, usage examples, CLI help text, and any file under `docs/`.

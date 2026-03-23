@@ -64,6 +64,7 @@ Modes:
 Rules:
 
 - Inspect staged changes only.
+- Treat this prompt as self-contained: do not rely on hidden/system prompts for changelog or commit-message conventions.
 - Never run `git add`, commit, or push.
 - Allowed git commands are read-only (`git status`, `git diff`, `git log`, `git show`).
 - If `AGENTS.md` includes changelog or commit-message directives, follow them.
@@ -75,6 +76,7 @@ Rules:
 - If nothing is staged, do not edit changelog files.
 - The proposed commit message must stay consistent with the staged changes and the changelog edits you just made.
 - Use conventional commit prefixes: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`, `build`.
+- Do not invent information: only describe what the staged changes actually do.
 
 Type mapping:
 
@@ -86,5 +88,5 @@ Type mapping:
 Output:
 
 - Clean diff on updated changelog file(s).
-- Suggested commit message in `concise` format.
+- Suggested commit message in `concise` format (`type: description`, one line, max 72 chars).
 - 3-5 bullet recap of what changed and why.

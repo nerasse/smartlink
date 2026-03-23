@@ -1,6 +1,6 @@
 {
   "name": "smartlink",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Generate and install shared AI tool resources from one cross-platform Node.js CLI",
   "type": "module",
   "bin": {

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-03-23
+
+### Changed
+
+- `/release` command (`pack/shared/commands/release.md`) is now self-contained and explicitly handles package version bumps for changed manifests before documentation/changelog/commit/tag/push, including lockfile handling and bump-rationale reporting
+- `/commit`, `/changelog`, and `/documentation` commands (`pack/shared/commands/commit.md`, `pack/shared/commands/changelog.md`, `pack/shared/commands/documentation.md`) now embed their key rules directly so behavior stays consistent even when hidden system prompts are unavailable
+
 ## [0.1.1] - 2026-03-21
 
 ### Added
